@@ -1,9 +1,11 @@
 --- === mjolnir.grille ===
 ---
---- A module for moving/resizing your windows along a virtual and horizontal grid(s).
+--- A module for moving/resizing your windows along a virtual and horizontal grid(s),
+--- using a fluent interface (see Usage below).
 ---
---- mjolnir.grille is based on mjolnir.sd.grid and mjolnir.bg.grid modules, but allows multiple grids and has
---- an interface that is more tailored to my workflows.
+--- mjolnir.grille was based on mjolnir.sd.grid and mjolnir.bg.grid modules, but went through
+--- significant modifications to suit my workflows. For example, it allows one to use multiple grids
+--- at the same time and uses a fluent interface, so the intentions are more readable.
 ---
 --- The grid is an partition of your screen; by default it is 3x3, i.e. 3 cells wide by 3 cells tall.
 ---
@@ -28,28 +30,25 @@
 ---
 ---    == the code below needs to be reworked ==
 ---    -- move windows as per grid segments
----    hotkey.bind(cmdalt, 'LEFT', grid33:pushwindow_left)
----    hotkey.bind(cmdalt, 'RIGHT', grid33:pushwindow_right)
+---    hotkey.bind(cmdalt, 'LEFT', grid33:focused():left():move())
+---    hotkey.bind(cmdalt, 'RIGHT', grid33:focused():right():move())
 ---
 ---    -- resize windows to grid
----    hotkey.bind(scmdalt, 'LEFT', grid33:resizewindowThinner)
----    hotkey.bind(scmdalt, 'RIGHT', grid33:resizeWindowWider)
+---    hotkey.bind(scmdalt, 'LEFT', grid33:focused():thinner():resize())
+---    hotkey.bind(scmdalt, 'RIGHT', grid33:focused():wider():resize())
 ---
----    -- use the other grid
----    hotkey.bind(cmdalt, 'h', function()
----        local win = window.focusedwindow()
----        local f = {x = 0, y = 0, w = 1, h = grid42:height}
----        grid22:set(win, f, win:screen())
----      end)
+---    -- on a 3x3 grid make a 2x3 window and place it on left
+---    hotkey.bind(cmdalt, 'h', grid33:focused():wide(2):tallest():leftmost():place())
 ---
----    hotkey.bind(cmdalt, 'j', function()
----        local win = window.focusedwindow()
----        local f = {x = 1, y = 0, w = 1, h = grid42:height}
----        grid22:set(win, f, win:screen())
----      end)
+---    -- on a 3x3 grid make a 1x3 window and place it rightmost
+---    hotkey.bind(cmdalt, 'j', grid33:focused():tallest():rightmost():place())
 ---
----    hotkey.bind(ccmdalt, 'LEFT', grid42:pushWindowLeft)
----    hotkey.bind(ccmdalt, 'RIGHT', grid42:pushWindowRight)
+---  defaults are:
+---    1 cell wide, 1 cell tall, top-left corner, focused window
+---
+---  One must start with grid:focused() or grid:window('title') and end with a command move(),
+---  place(), resize(), or act() (they are all synonyms for the same action). This chain of
+---  command will return a function that one can pass to hotkey.bind.
 ---
 ---
 --- [Github Page](https://github.com/knl/mjolnir.grille)
@@ -61,6 +60,7 @@
 --- @module mjolnir.grille
 local grille = {}
 
+local appfinder = require "mjolnir.cmsj.appfinder"
 local fnutils = require "mjolnir.fnutils"
 local window = require "mjolnir.window"
 local alert = require "mjolnir.alert"
@@ -94,6 +94,53 @@ function grille.new(_width, _height)
 
   setmetatable(self, { __index = Grille })
   return self
+end
+
+-- class table representing an action on a window
+GrilleAction = {}
+
+local function init_grille_action(g, title)
+  return {
+    -- title, '' to denote the focused one
+    title = title,
+    -- grid
+    grid = g,
+    -- location
+    x = -1,
+    y = -1,
+    -- dimensions
+    w = 0,
+    h = 0,
+    -- changes accrued in the methods
+    dx = 0,
+    dy = 0,
+    dw = 0,
+    dh = 0,
+    -- 'mosts'
+    _leftmost = false,
+    _rightmost = false,
+    _topmost = false,
+    _bottommost = false,
+  }
+end
+
+--- mjolnir.Grille:focused()
+--- Function
+--- Creates a new GrilleAction object for the focused window
+function Grille:focused()
+  _self = init_grille_action(self, '')
+  setmetatable(_self, { __index = GrilleAction })
+  return _self
+end
+
+--- mjolnir.Grille:window(title)
+--- Function
+--- Creates a new GrilleAction object for the main window of the app titled 'title'
+function Grille:window(title)
+  assert(title and title ~= '', 'Cannot find a window without a title')
+  _self = init_grille_action(self, title)
+  setmetatable(_self, { __index = GrilleAction })
+  return _self
 end
 
 --- mjolnir.grille:get(win)
@@ -190,78 +237,192 @@ function Grille:pushwindow_prevscreen()
   grid:set(win, grid.get(win), win:screen():previous())
 end
 
---- mjolnir.grille.pushwindow_left()
---- Function
---- Moves the focused window one cell to the left.
-function Grille:pushwindow_left()
-  self:adjust_focused_window(function(f) f.x = math.max(f.x - 1, 0) end)
+function GrilleAction:xpos(x)
+  self.x = math.min(self.grid.width, math.max(0, x))
+  return self
 end
 
---- mjolnir.grille.pushwindow_right()
---- Function
---- Moves the focused window one cell to the right.
-function Grille:pushwindow_right()
-  self:adjust_focused_window(function(f) f.x = math.min(f.x + 1, self.width - f.w) end)
+function GrilleAction:ypos(y)
+  self.y = math.min(self.grid.height, math.max(0, y))
+  return self
 end
 
---- mjolnir.grille.resizewindow_wider()
---- Function
---- Resizes the focused window's right side to be one cell wider.
-function Grille:resizewindow_wider()
-  self:adjust_focused_window(function(f) f.w = math.min(f.w + 1, self.width - f.x) end)
+function GrilleAction:right()
+  if self.x ~= -1 then
+    self.x = math.min(self.grid.width-self.w, self.x+1)
+  else
+    self.dx = 1
+  end
+  return self
 end
 
---- mjolnir.grille.resizewindow_thinner()
---- Function
---- Resizes the focused window's right side to be one cell thinner.
-function Grille:resizewindow_thinner()
-  self:adjust_focused_window(function(f) f.w = math.max(f.w - 1, 1) end)
+function GrilleAction:left()
+  if self.x ~= -1 then
+    self.x = math.max(0, self.x-1)
+  else
+    self.dx = -1
+  end
+  return self
 end
 
---- mjolnir.grille.resizewindow_fullwidth()
---- Function
---- Resizes the focused window to be the full width of the screen
-function Grille:resizewindow_fullwidth()
-  self:adjust_focused_window(function(f) f.w = self.width end)
+function GrilleAction:up()
+  if self.y ~= -1 then
+    self.y = math.max(0, self.y-1)
+  else
+    self.dy = -1
+  end
+  return self
 end
 
---- mjolnir.grille.pushwindow_down()
---- Function
---- Moves the focused window to the bottom half of the screen.
-function Grille:pushwindow_down()
-  self:adjust_focused_window(function(f) f.y = math.min(f.y + 1, self.height - f.h) end)
+function GrilleAction:down()
+  if self.y ~= -1 then
+    self.y = math.min(self.grid.height-self.h, self.y+1)
+  else
+    self.dy = 1
+  end
+  return self
 end
 
---- mjolnir.grille.pushwindow_up()
---- Function
---- Moves the focused window to the top half of the screen.
-function Grille:pushwindow_up()
-  self:adjust_focused_window(function(f) f.y = math.max(f.y - 1, 0) end)
+function GrilleAction:wide(w)
+  self.w = math.min(self.grid.width, math.max(1, w or 1))
+  return self
 end
 
---- mjolnir.grille.resizewindow_shorter()
---- Function
---- Resizes the focused window so its height is 1 grid count less.
-function Grille:resizewindow_shorter()
-  self:adjust_focused_window(function(f) f.y = f.y - 0; f.h = math.max(f.h - 1, 1) end)
+function GrilleAction:tall(h)
+  self.h = math.min(self.grid.height, math.max(1, h or 1))
+  return self
 end
 
---- mjolnir.grille.resizewindow_taller()
---- Function
---- Resizes the focused window so its height is 1 grid count higher.
-function Grille:resizewindow_taller()
-  self:adjust_focused_window(function(f) f.y = f.y - 0; f.h = math.min(f.h + 1, self.height - f.y) end)
+function GrilleAction:thinner(by)
+  if self.w ~= 0 then
+    self.w = math.min(self.grid.width, math.max(1, self.w - (by or 1)))
+  else
+    self.dw = -1 * math.max(1, by or 1)
+  end
+  return self
 end
 
---- mjolnir.grille.resizewindow_fullheight()
---- Function
---- Resizes the focused window so its height is the full height of the screen
-function Grille:resizewindow_fullheight()
-  self:adjust_focused_window(function(f) f.h = self.height end)
+function GrilleAction:wider(by)
+  if self.w ~= 0 then
+    self.w = math.min(self.grid.width, math.max(1, self.w + (by or 1)))
+  else
+    self.dw = math.max(1, by or 1)
+  end
+  return self
 end
 
-function Grille:test()
-   print ("My w = " .. tostring(self.width) .. " h = " .. tostring(self.height))
+function GrilleAction:taller(by)
+  if self.h ~= 0 then
+    self.h = math.min(self.grid.height, math.max(1, self.h + (by or 1)))
+  else
+    self.dh = math.max(1, by or 1)
+  end
+  return self
 end
+
+function GrilleAction:shorter(by)
+  if self.h ~= 0 then
+    self.h = math.min(self.grid.height, math.max(1, self.h - (by or 1)))
+  else
+    self.dh = -1 * math.max(1, by or 1)
+  end
+  return self
+end
+
+function GrilleAction:tallest()
+  self.h = self.grid.height
+  return self
+end
+
+function GrilleAction:widest()
+  self.w = self.grid.width
+  return self
+end
+
+function GrilleAction:leftmost()
+  self.dx = 0
+  self._leftmost = true
+  return self
+end
+
+function GrilleAction:rightmost()
+  self.dx = 0
+  self._rightmost = true
+  return self
+end
+
+function GrilleAction:topmost()
+  self.dy = 0
+  self._topmost = true
+  return self
+end
+
+function GrilleAction:bottommost()
+  self.dy = 0
+  self._bottommost = true
+  return self
+end
+
+function GrilleAction:act()
+  return function()
+    local f = {}
+    local win = nil
+    if title then
+       local app = appfinder.app_from_name(title)
+       win = app:mainwindow()
+       -- alert.show(string.format('application title for %q is %q, main window %q', title, app:title(), window:title()))
+    else
+      win = window.focusedwindow()
+    end
+
+    local origf = self.grid:get(win)
+    -- print(string.format("origf x=%d, y=%d, w=%d, h=%d", origf.x, origf.y, origf.w, origf.h))
+    -- print(string.format("self x=%d, y=%d, w=%d, h=%d", self.x, self.y, self.w, self.h))
+    -- print(string.format("self dx=%d, dy=%d, dw=%d, dh=%d", self.dx, self.dy, self.dw, self.dh))
+
+    -- take defaults
+    f.w = (self.w == 0) and origf.w or self.w
+    f.h = (self.h == 0) and origf.h or self.h
+    f.x = (self.x == -1) and origf.x or self.x
+    f.y = (self.y == -1) and origf.y or self.y
+
+    -- adjust width and height
+    if self.dw ~= 0 then
+      f.w = math.min(self.grid.width, math.max(1, f.w + self.dw))
+    end
+    if self.dh ~= 0 then
+      f.h = math.min(self.grid.height, math.max(1, f.h + self.dh))
+    end
+
+    -- and positions
+    if self._topmost then
+       f.y = 0
+    end
+    if self._leftmost then
+       f.x = 0
+    end
+    if self._rightmost then
+       f.x = self.grid.width - f.w
+    end
+    if self._bottommost then
+       f.y = self.grid.height - f.h
+    end
+
+    if self.dx ~= 0 then
+      f.x = math.min(self.grid.width, math.max(0, f.x + self.dx))
+    end
+    if self.dy ~= 0 then
+      f.y = math.min(self.grid.height, math.max(1, f.y + self.dy))
+    end
+
+    -- print(string.format("final f x=%d, y=%d, w=%d, h=%d", f.x, f.y, f.w, f.h))
+    -- print(string.format("application is '%q'", win:title()))
+    self.grid:set(win, f, win:screen())
+  end
+end
+
+GrilleAction.resize = GrilleAction.act
+GrilleAction.move = GrilleAction.act
+GrilleAction.place = GrilleAction.act
 
 return grille

@@ -1,10 +1,12 @@
 package = "mjolnir.grille"
-version = "0.1-0"
+version = "0.5-0"
 
 -- General metadata:
 
 local url = "github.com/knl/mjolnir.grille"
-local desc = "Mjolnir module for moving/resizing your windows along both virtual and horizontal grids."
+local desc = [[
+  A module for moving/resizing your windows along a virtual and horizontal grid(s), using a fluent interface.
+]]
 
 source = {
   url = "git://" .. url,
@@ -25,6 +27,7 @@ dependencies = {
   "mjolnir.fnutils",
   "mjolnir.application",
   "mjolnir.alert",
+  "mjolnir.cmsj.appfinder",
 }
 
 -- Build rules:
