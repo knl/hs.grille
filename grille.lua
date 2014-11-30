@@ -202,25 +202,6 @@ function Grille:fits_cell(win)
          and ((winframe.y - screenrect.y) % screenheight == 0)
 end
 
---- mjolnir.grille.adjust_focused_window(fn)
---- Function
---- Passes the focused window's cell to fn and uses the result as its new cell.
-function Grille:adjust_focused_window(fn)
-  local win = window.focusedwindow()
-  local cell = self:get(win)
-  fn(cell)
-  self:set(win, cell, win:screen())
-end
-
---- mjolnir.grille.maximize_window()
---- Function
---- Maximizes the focused window along the given cell.
-function Grille:maximize_window()
-  local win = window.focusedwindow()
-  local cell = {x = 0, y = 0, w = self.width, h = grid.height}
-  grid.set(win, cell, win:screen())
-end
-
 --- mjolnir.grille.pushwindow_nextscreen()
 --- Function
 --- Moves the focused window to the next screen, using its current cell on that screen.
@@ -237,16 +218,25 @@ function Grille:pushwindow_prevscreen()
   grid:set(win, grid.get(win), win:screen():previous())
 end
 
+--- mjolnir.grilleaction:xpos(x)
+--- Function
+--- Sets windows' x position to x
 function GrilleAction:xpos(x)
   self.x = math.min(self.grid.width, math.max(0, x))
   return self
 end
 
+--- mjolnir.grilleaction:ypos(y)
+--- Function
+--- Sets windows' y position to y
 function GrilleAction:ypos(y)
   self.y = math.min(self.grid.height, math.max(0, y))
   return self
 end
 
+--- mjolnir.grilleaction:right()
+--- Function
+--- Moves the window to the right (making sure that window doesn't go out of the screen borders)
 function GrilleAction:right()
   if self.x ~= -1 then
     self.x = math.min(self.grid.width-self.w, self.x+1)
@@ -256,6 +246,9 @@ function GrilleAction:right()
   return self
 end
 
+--- mjolnir.grilleaction:left()
+--- Function
+--- Moves the window to the left (making sure that window doesn't go out of the screen borders)
 function GrilleAction:left()
   if self.x ~= -1 then
     self.x = math.max(0, self.x-1)
@@ -265,6 +258,9 @@ function GrilleAction:left()
   return self
 end
 
+--- mjolnir.grilleaction:up()
+--- Function
+--- Moves the window to the up (making sure that window doesn't go out of the screen borders)
 function GrilleAction:up()
   if self.y ~= -1 then
     self.y = math.max(0, self.y-1)
@@ -274,6 +270,9 @@ function GrilleAction:up()
   return self
 end
 
+--- mjolnir.grilleaction:down()
+--- Function
+--- Moves the window to the down (making sure that window doesn't go out of the screen borders)
 function GrilleAction:down()
   if self.y ~= -1 then
     self.y = math.min(self.grid.height-self.h, self.y+1)
@@ -283,16 +282,36 @@ function GrilleAction:down()
   return self
 end
 
+--- mjolnir.grilleaction:wide(w)
+--- Function
+--- Set's the window to be w cells wide. If w is greater than grid
+--- width, sets windows' width to grid width, and if w is 0 or
+--- negative, sets the window to be 1 cell wide.
+--- If w is omitted, sets windows' width to 1.
 function GrilleAction:wide(w)
   self.w = math.min(self.grid.width, math.max(1, w or 1))
   return self
 end
 
+--- mjolnir.grilleaction:tall(h)
+--- Function
+--- Set's the window to be h cells tall. If h is greater than grid
+--- height, sets windows' height to grid height, and if h is 0 or
+--- negative, sets the window to be 1 cell tall.
+--- If h is omitted, sets windows' height to 1.
 function GrilleAction:tall(h)
   self.h = math.min(self.grid.height, math.max(1, h or 1))
   return self
 end
 
+
+--- mjolnir.grilleaction:thinner(by)
+--- Function
+--- Makes window thinner by 'by' cells, making sure that the resulting
+--- width doesn't go more than the width of the screen, or less than 1
+--- cell.
+--- by can be a negative number, too.
+--- If by is omitted, defaults to 1.
 function GrilleAction:thinner(by)
   if self.w ~= 0 then
     self.w = math.min(self.grid.width, math.max(1, self.w - (by or 1)))
@@ -302,6 +321,13 @@ function GrilleAction:thinner(by)
   return self
 end
 
+--- mjolnir.grilleaction:wider(by)
+--- Function
+--- Makes window wider by 'by' cells, making sure that the resulting
+--- width doesn't go more than the width of the screen, or less than 1
+--- cell.
+--- by can be a negative number, too.
+--- If by is omitted, defaults to 1.
 function GrilleAction:wider(by)
   if self.w ~= 0 then
     self.w = math.min(self.grid.width, math.max(1, self.w + (by or 1)))
@@ -311,6 +337,13 @@ function GrilleAction:wider(by)
   return self
 end
 
+--- mjolnir.grilleaction:taller(by)
+--- Function
+--- Makes window taller by 'by' cells, making sure that the resulting
+--- height doesn't go more than the height of the screen, or less than 1
+--- cell.
+--- by can be a negative number, too.
+--- If by is omitted, defaults to 1.
 function GrilleAction:taller(by)
   if self.h ~= 0 then
     self.h = math.min(self.grid.height, math.max(1, self.h + (by or 1)))
@@ -320,6 +353,13 @@ function GrilleAction:taller(by)
   return self
 end
 
+--- mjolnir.grilleaction:shorter(by)
+--- Function
+--- Makes window shorter by 'by' cells, making sure that the resulting
+--- height doesn't go more than the height of the screen, or less than 1
+--- cell.
+--- by can be a negative number, too.
+--- If by is omitted, defaults to 1.
 function GrilleAction:shorter(by)
   if self.h ~= 0 then
     self.h = math.min(self.grid.height, math.max(1, self.h - (by or 1)))
@@ -329,40 +369,72 @@ function GrilleAction:shorter(by)
   return self
 end
 
+--- mjolnir.grilleaction:tallest()
+--- Function
+--- Makes windows' height the height of the screen.
 function GrilleAction:tallest()
   self.h = self.grid.height
   return self
 end
 
+--- mjolnir.grilleaction:widest()
+--- Function
+--- Makes windows' width the width of the screen.
 function GrilleAction:widest()
   self.w = self.grid.width
   return self
 end
 
+--- mjolnir.grilleaction:leftmost()
+--- Function
+--- Makes the window align with the left screen border. Any preceding
+--- commands to change the horizontal position of the window are
+--- forgotten.
 function GrilleAction:leftmost()
   self.dx = 0
   self._leftmost = true
   return self
 end
 
+--- mjolnir.grilleaction:rightmost()
+--- Function
+--- Makes the window align with the right screen border. Any preceding
+--- commands to change the horizontal position of the window are
+--- forgotten.
 function GrilleAction:rightmost()
   self.dx = 0
   self._rightmost = true
   return self
 end
 
+--- mjolnir.grilleaction:topmost()
+--- Function
+--- Makes the window align with the top screen border. Any preceding
+--- commands to change the vertical position of the window are
+--- forgotten.
 function GrilleAction:topmost()
   self.dy = 0
   self._topmost = true
   return self
 end
 
+--- mjolnir.grilleaction:bottommost()
+--- Function
+--- Makes the window align with the bottom screen border. Any preceding
+--- commands to change the vertical position of the window are
+--- forgotten.
 function GrilleAction:bottommost()
   self.dy = 0
   self._bottommost = true
   return self
 end
 
+--- mjolnir.grilleaction:act()
+--- Function
+--- Finalizes all previous commands for changing windows' size and
+--- position. This command will produce an anonymous, parameterless
+--- function that can be fed to hotkey.bind method (from hotkey
+--- package).
 function GrilleAction:act()
   return function()
     local f = {}
@@ -421,8 +493,17 @@ function GrilleAction:act()
   end
 end
 
+--- mjolnir.grilleaction:resize()
+--- Function
+--- Alias for act()
 GrilleAction.resize = GrilleAction.act
+--- mjolnir.grilleaction:move()
+--- Function
+--- Alias for act()
 GrilleAction.move = GrilleAction.act
+--- mjolnir.grilleaction:place()
+--- Function
+--- Alias for act()
 GrilleAction.place = GrilleAction.act
 
 return grille
