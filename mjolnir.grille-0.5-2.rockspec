@@ -1,5 +1,5 @@
 package = "mjolnir.grille"
-version = "0.5-1"
+version = "0.5-2"
 
 -- General metadata:
 
@@ -9,8 +9,7 @@ local desc = [[
 ]]
 
 source = {
-  url = "git://" .. url,
-  tag = version,
+  url = "git://" .. url .. ".git",
 }
 description = {
   summary = desc,
