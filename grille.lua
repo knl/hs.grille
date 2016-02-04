@@ -1,14 +1,14 @@
---- === mjolnir.grille ===
+--- === grille ===
 ---
 --- A module for moving/resizing your windows along a virtual and horizontal grid(s),
 --- using a fluent interface (see Usage below).
 ---
---- mjolnir.grille was based on mjolnir.sd.grid and mjolnir.bg.grid modules, but went through
+--- hs.grille was based on hs.sd.grid and hs.bg.grid modules, but went through
 --- significant modifications to suit my workflows. For example, it allows one to use multiple grids
 --- at the same time and uses a fluent interface, so the intentions are more readable.
 ---
---- Since version 0.6.0, mjolnir.grille uses [mjolnir.winter](https://github.com/knl/mjolnir.winter),
---- and one can use all the commands that mjolnir.winter supports.
+--- Since version 0.6.0, hs.grille uses [hs.winter](https://github.com/knl/hs.winter),
+--- and one can use all the commands that hs.winter supports.
 ---
 --- The grid is an partition of your screen; by default it is 3x3, i.e. 3 cells wide by 3 cells tall.
 ---
@@ -21,7 +21,7 @@
 --- * and so on...
 ---
 --- Usage:
----   local grille = require "mjolnir.grille"
+---   local grille = require "grille"
 ---
 ---   -- default grid is 3x3
 ---   local grid33 = grille.new(3, 3)
@@ -54,21 +54,21 @@
 ---  command will return a function that one can pass to hotkey.bind.
 ---
 ---
---- [Github Page](https://github.com/knl/mjolnir.grille)
+--- [Github Page](https://github.com/knl/hs.grille)
 ---
 --- @author    Nikola Knezevic
 --- @copyright 2014
 --- @license   BSD
 ---
---- @module mjolnir.grille
+--- @module hs.grille
 local grille = {
   _VERSION     = '0.6.0',
   _DESCRIPTION = 'A module for moving/resizing windows on a grid, using a fluent interface. This module supports multiple grids at the same time.',
-  _URL         = 'https://github.com/knl/mjolnir.grille',
+  _URL         = 'https://github.com/knl/hs.grille',
 }
 
-local window = require "mjolnir.window"
-local winter = require "mjolnir.winter"
+local window = require "hs.window"
+local winter = require "winter"
 
 local function round(num, idp)
   local mult = 10^(idp or 0)
@@ -93,10 +93,12 @@ function GrilleCoordTrans.new(_width, _height, _xmargin, _ymargin)
     ymargin = math.max(_ymargin or 0, 0),
   }
   setmetatable(self, { __index = GrilleCoordTrans })
+  print('GCT:new')
+  for k,v in pairs(self) do print(k,v) end
   return self
 end
 
---- mjolnir.grille:get(win)
+--- hs.grille:get(win)
 --- Function
 --- Gets the cell this window is on
 function GrilleCoordTrans:get(win, _screen)
@@ -115,13 +117,17 @@ function GrilleCoordTrans:get(win, _screen)
   }
 end
 
---- mjolnir.grille:set(win, grid, screen)
+--- hs.grille:set(win, grid, screen)
 --- Function
 --- Sets the cell this window should be on
 function GrilleCoordTrans:set(win, screen, f)
   local screenrect = screen:frame()
   local screenwidth = screenrect.w / self.width
   local screenheight = screenrect.h / self.height
+  print('GCT:set')
+  for k,v in pairs(self) do print(k,v) end
+  print('GCT:set f')
+  for k,v in pairs(f) do print(k,v) end
   local newframe = {
     x = (f.x * screenwidth) + screenrect.x,
     y = (f.y * screenheight) + screenrect.y,
@@ -134,22 +140,23 @@ function GrilleCoordTrans:set(win, screen, f)
   newframe.w = newframe.w - (self.xmargin * 2)
   newframe.h = newframe.h - (self.ymargin * 2)
 
-  win:setframe(newframe)
+  win:setFrame(newframe)
 end
 
 -- class table
 local Grille = {}
 
---- mjolnir.grille.new(width, height)
+--- hs.grille.new(width, height)
 --- Function
 --- Creates a new Grille object with given width and height. Default width and height are 3.
 function grille.new(width, height, xmargin, ymargin)
   local ct = GrilleCoordTrans.new(width, height, xmargin, ymargin)
   local self = winter.new(ct)
+  print(string.format("New grille ready, width = %d, height =%d", width, height))
   return self
 end
 
---- mjolnir.grille:fits_cell(win)
+--- hs.grille:fits_cell(win)
 --- Function
 --- Returns whether a window fits cells (doesn't need readjustments)
 function Grille:fits_cell(win)
